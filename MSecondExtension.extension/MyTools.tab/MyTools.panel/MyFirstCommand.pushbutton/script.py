@@ -108,6 +108,22 @@ def create_section_block(transaction, section_element_type_name, family_name, tu
     return new_section_block
 
 
+def set_section_parameters_values(transaction, section_element, parameter_name, parameter_value):
+    transaction.Start('SET PARAMS')
+    for p in section_element.Parameters:
+        if p.Definition.Name == parameter_name:
+            p.Set(str(parameter_value))
+    transaction.Commit()
+
+
+def load_section_parameters(section):
+    return [
+        ('Material 1', 50),
+        ('Station Anfang', section[0]),
+        ('Station Ende', section[1]),
+    ]
+
+
 as_designed_tunnel_curve = get_tunnel_curve()
 
 transaction = DB.Transaction(doc)
@@ -130,23 +146,10 @@ sections = [
     (15.1,20),
 ]
 for id, s in enumerate(sections):
-    b = create_section_block(transaction, 'EBO_K', 'construction', as_built_tunnel_curve, s[0], s[1], as_built_tunnel_curve_xyz)
-    # transaction.Start('SET PARAMS')
-    # for p in b.Parameters:
-    #
-    #     if p.Definition.Name == 'Blocknummer':
-    #         print(p.Definition.Name)
-    #         print(p.AsValueString())
-    #         p.Set(str(id))
-    #     if p.Definition.Name == 'Station Anfang':
-    #         print(p.Definition.Name)
-    #         print(p.AsValueString())
-    #         p.Set(str(s[0]))
-    #     if p.Definition.Name == 'Station Ende':
-    #         print(p.Definition.Name)
-    #         print(p.AsValueString())
-    #         p.Set(str(s[1]))
-    # transaction.Commit()
+    section_element = create_section_block(transaction, 'EBO_K', 'construction', as_built_tunnel_curve, s[0], s[1], as_built_tunnel_curve_xyz)
+    section_parameters = load_section_parameters(s)
+    for p in section_parameters:
+        set_section_parameters_values(transaction, section_element, p[0], p[1])
 
 
 

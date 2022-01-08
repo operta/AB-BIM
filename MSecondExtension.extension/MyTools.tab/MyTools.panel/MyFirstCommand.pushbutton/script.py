@@ -24,8 +24,19 @@ def add_identity_parameter(transaction, family_manager, parameter_name, paramete
         print(e)
         transaction.RollBack()
 
+def load_construction_family(transaction, family_name):
+    try:
+        transaction.Start('LOAD CONSTRUCTION FAMILY')
+        doc.LoadFamily(family_name)
+        transaction.Commit()
+    except:
+        print('Family does not exist, creating family')
+        transaction.RollBack()
+        create_and_load_construction_family(transaction, family_name)
 
-def create_and_load_construction_family(transaction, family_name, parameters_tuples, child_family_model_name='EBO_K'):
+
+def create_and_load_construction_family(transaction, family_name, child_family_model_name='EBO_K'):
+    parameters_tuples = [('Material 1', DB.ParameterType.Text)]
     child_family_element = get_family_model(child_family_model_name)
     family = child_family_element.Family
     family_doc = doc.EditFamily(family)
@@ -42,19 +53,17 @@ def create_and_load_construction_family(transaction, family_name, parameters_tup
         print('error')
         print(e)
 
-    transaction.Start('LOAD CONSTRUCTION FAMILY')
-    doc.LoadFamily(family_name)
-    transaction.Commit()
+    load_construction_family(transaction, family_name)
 
 
-def get_tunnel_curve():
+def get_existing_tunnel_curve():
     elements_collector = DB.FilteredElementCollector(doc).WhereElementIsNotElementType().ToElements()
     for element in elements_collector:
         try:
             if (str(element.GetType())) == 'Autodesk.Revit.DB.CurveByPoints':
                 return element
         except:
-            print('ERROR')
+            print('Cannot locate existing tunnel curve!')
 
 
 def get_tunnel_element(type):
@@ -87,10 +96,11 @@ def create_new_point_on_edge(edge, position_meter):
     )
 
 
-def create_tunnel_curve(transaction, base_tunnel_curve):
+def create_tunnel_curve(transaction):
     transaction.Start('CREATE TUNNEL CURVE')
     new_xyz = DB.XYZ(0,0,-100)
-    new_tunnel_curve_ids = DB.ElementTransformUtils.CopyElement(doc, base_tunnel_curve.Id, new_xyz)
+    as_designed_tunnel_curve = get_existing_tunnel_curve()
+    new_tunnel_curve_ids = DB.ElementTransformUtils.CopyElement(doc, as_designed_tunnel_curve.Id, new_xyz)
     new_tunnel_curve = doc.GetElement(new_tunnel_curve_ids[0])
     transaction.Commit()
     return new_tunnel_curve
@@ -125,6 +135,7 @@ def load_section_parameters(section):
         ('Station Ende', section[1]),
     ]
 
+
 def load_sections(section_type):
     return [
         (0,10),
@@ -132,16 +143,16 @@ def load_sections(section_type):
         (15.1,20),
     ]
 
+
 def set_section_type():
     return 'EBO_K'
 
 
 transaction = DB.Transaction(doc)
-create_and_load_construction_family(transaction, 'construction.rfa', [('Material 1', DB.ParameterType.Text)], 'EBO_K')
 
-as_designed_tunnel_curve = get_tunnel_curve()
-as_built_tunnel_curve = create_tunnel_curve(transaction, as_designed_tunnel_curve)
+load_construction_family(transaction, 'construction.rfa')
 
+as_built_tunnel_curve = create_tunnel_curve(transaction)
 
 section_type = set_section_type()
 sections = load_sections(section_type)
@@ -157,7 +168,7 @@ for id, s in enumerate(sections):
 
 
 
-
+# TODO error on first load says element is not adaptive
 
 
 

@@ -97,7 +97,6 @@ def create_tunnel_curve(transaction, base_tunnel_curve, new_xyz):
 def create_section_block(transaction, section_element_type_name, family_name, tunnel_curve, beginning_meter, ending_meter, tunnel_curve_xyz):
     transaction.Start("CREATE SECTION BLOCK")
     child_family_element = get_family_model(section_element_type_name, family_name)
-    print(child_family_element.Family)
     child_family_element.Activate()
     new_section_block = doc.FamilyCreate.NewFamilyInstance(DB.XYZ(50, 0, 0), child_family_element, DB.Structure.StructuralType.NonStructural)
 

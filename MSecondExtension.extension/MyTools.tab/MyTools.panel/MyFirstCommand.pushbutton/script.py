@@ -25,7 +25,7 @@ def add_identity_parameter(transaction, family_manager, parameter_name, paramete
         transaction.RollBack()
 
 
-def create_construction_family(family_name, parameters_tuples, child_family_model_name='EBO_K'):
+def create_and_load_construction_family(transaction, family_name, parameters_tuples, child_family_model_name='EBO_K'):
     child_family_element = get_family_model(child_family_model_name)
     family = child_family_element.Family
     family_doc = doc.EditFamily(family)
@@ -41,6 +41,10 @@ def create_construction_family(family_name, parameters_tuples, child_family_mode
     except Exception as e:
         print('error')
         print(e)
+
+    transaction.Start('LOAD CONSTRUCTION FAMILY')
+    doc.LoadFamily(family_name)
+    transaction.Commit()
 
 
 def get_tunnel_curve():
@@ -83,15 +87,16 @@ def create_new_point_on_edge(edge, position_meter):
     )
 
 
-def create_tunnel_curve(transaction, base_tunnel_curve, new_xyz):
+def create_tunnel_curve(transaction, base_tunnel_curve):
     transaction.Start('CREATE TUNNEL CURVE')
+    new_xyz = DB.XYZ(0,0,-100)
     new_tunnel_curve_ids = DB.ElementTransformUtils.CopyElement(doc, base_tunnel_curve.Id, new_xyz)
     new_tunnel_curve = doc.GetElement(new_tunnel_curve_ids[0])
     transaction.Commit()
     return new_tunnel_curve
 
 
-def create_section_block(transaction, section_element_type_name, family_name, tunnel_curve, beginning_meter, ending_meter, tunnel_curve_xyz):
+def create_section_block(transaction, section_element_type_name, family_name, tunnel_curve, beginning_meter, ending_meter):
     transaction.Start("CREATE SECTION BLOCK")
     child_family_element = get_family_model(section_element_type_name, family_name)
     child_family_element.Activate()
@@ -120,30 +125,28 @@ def load_section_parameters(section):
         ('Station Ende', section[1]),
     ]
 
+def load_sections(section_type):
+    return [
+        (0,10),
+        (10.1,15),
+        (15.1,20),
+    ]
 
-as_designed_tunnel_curve = get_tunnel_curve()
+def set_section_type():
+    return 'EBO_K'
+
 
 transaction = DB.Transaction(doc)
+create_and_load_construction_family(transaction, 'construction.rfa', [('Material 1', DB.ParameterType.Text)], 'EBO_K')
 
-as_built_tunnel_curve_xyz = DB.XYZ(200,0,0)
-as_built_tunnel_curve = create_tunnel_curve(transaction, as_designed_tunnel_curve, as_built_tunnel_curve_xyz)
-
-
-create_construction_family('construction.rfa', [('Material 1', DB.ParameterType.Text)], 'EBO_K')
+as_designed_tunnel_curve = get_tunnel_curve()
+as_built_tunnel_curve = create_tunnel_curve(transaction, as_designed_tunnel_curve)
 
 
-transaction.Start('LOAD CONSTRUCTION FAMILY')
-doc.LoadFamily('construction.rfa')
-transaction.Commit()
-
-
-sections = [
-    (0,10),
-    (10.1,15),
-    (15.1,20),
-]
+section_type = set_section_type()
+sections = load_sections(section_type)
 for id, s in enumerate(sections):
-    section_element = create_section_block(transaction, 'EBO_K', 'construction', as_built_tunnel_curve, s[0], s[1], as_built_tunnel_curve_xyz)
+    section_element = create_section_block(transaction, section_type, 'construction', as_built_tunnel_curve, s[0], s[1])
     section_parameters = load_section_parameters(s)
     for p in section_parameters:
         set_section_parameters_values(transaction, section_element, p[0], p[1])

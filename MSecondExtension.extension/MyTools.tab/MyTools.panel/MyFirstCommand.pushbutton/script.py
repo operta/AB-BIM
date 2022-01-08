@@ -1,11 +1,9 @@
 from Autodesk.Revit import DB
-from Autodesk.Revit import Creation
+from rpw import db
 
 uidoc = __revit__.ActiveUIDocument
 doc = __revit__.ActiveUIDocument.Document
 uiapp = __revit__.Application
-
-from rpw import db
 
 
 def get_family_model(name, family_name='EBO_mitNische'):
@@ -43,7 +41,6 @@ def create_construction_family(family_name, parameters_tuples, child_family_mode
     except Exception as e:
         print('error')
         print(e)
-
 
 
 def get_tunnel_curve():

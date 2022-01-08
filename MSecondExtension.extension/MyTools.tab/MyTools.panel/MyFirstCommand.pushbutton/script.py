@@ -1,4 +1,5 @@
 from Autodesk.Revit import DB
+from Autodesk.Revit import Creation
 
 uidoc = __revit__.ActiveUIDocument
 doc = __revit__.ActiveUIDocument.Document
@@ -7,12 +8,12 @@ uiapp = __revit__.Application
 from rpw import db
 
 
-def get_family(name):
+def get_family_model(name, family_name='EBO_mitNische'):
     collector = db.Collector(of_class='FamilySymbol')
     element_types = collector.get_elements()
     for elem in element_types:
-        if elem.name == name:
-            return elem
+        if elem.name == name and elem.Family.Name == family_name:
+            return doc.GetElement(elem.Id)
 
 
 def add_identity_parameter(transaction, family_manager, parameter_name, parameter_type):
@@ -26,8 +27,8 @@ def add_identity_parameter(transaction, family_manager, parameter_name, paramete
         transaction.RollBack()
 
 
-def create_construction_family(family_name, parameters_tuples, child_family_model_name='EBO_K', ):
-    child_family_element = get_family(child_family_model_name)
+def create_construction_family(family_name, parameters_tuples, child_family_model_name='EBO_K'):
+    child_family_element = get_family_model(child_family_model_name)
     family = child_family_element.Family
     family_doc = doc.EditFamily(family)
     family_manager = family_doc.FamilyManager
@@ -55,14 +56,11 @@ def get_tunnel_curve():
             print('ERROR')
 
 
-def get_tunnel_element(type, family_name):
+def get_tunnel_element(type):
     elements_collector = DB.FilteredElementCollector(doc).WhereElementIsNotElementType().ToElements()
     for element in elements_collector:
         try:
-            if element.Name == type and str(element.GetType()) == 'Autodesk.Revit.DB.FamilyInstance' and element.Family == family_name:
-               print(element)
-               print(element.Name)
-               print(element.Family)
+            if element.Name == type and str(element.GetType()) == 'Autodesk.Revit.DB.FamilyInstance':
                return element
         except Exception as e:
             print('ERROR')
@@ -98,10 +96,10 @@ def create_tunnel_curve(transaction, base_tunnel_curve, new_xyz):
 
 def create_section_block(transaction, section_element_type_name, family_name, tunnel_curve, beginning_meter, ending_meter, tunnel_curve_xyz):
     transaction.Start("CREATE SECTION BLOCK")
-    existing_section_element = get_tunnel_element(section_element_type_name, family_name)
-
-    new_section_block_ids = DB.ElementTransformUtils.CopyElement(doc, existing_section_element.Id, tunnel_curve_xyz)
-    new_section_block = doc.GetElement(new_section_block_ids[0])
+    child_family_element = get_family_model(section_element_type_name, family_name)
+    print(child_family_element.Family)
+    child_family_element.Activate()
+    new_section_block = doc.FamilyCreate.NewFamilyInstance(DB.XYZ(50, 0, 0), child_family_element, DB.Structure.StructuralType.NonStructural)
 
     placement_point_a, placement_point_b = get_element_placement_points(new_section_block)
     placement_point_a.SetPointElementReference(create_new_point_on_edge(tunnel_curve, beginning_meter))
@@ -151,64 +149,6 @@ for id, s in enumerate(sections):
     #         p.Set(str(s[1]))
     # transaction.Commit()
 
-
-
-
-
-
-# fam_doc.SaveAs("construction.rfa")
-# fam_doc.Close(True)
-# transaction.Start("load family")
-# doc.LoadFamily("construction.rfa")
-# transaction.Commit()
-
-# elem = getFamilySymbol('AbschlagKomment')
-# print(elem.name)
-# for p in elem.Parameters:
-#     print(p.Definition.Name)
-#     print(p.AsValueString())
-#     print(p.AsInteger())
-# print(elem.FamilyName)
-# transaction.Start('hehe')
-# elements_collector = DB.FilteredElementCollector(doc).WhereElementIsNotElementType().ToElements()
-# for element in elements_collector:
-#     try:
-#         if element.Name == 'AbschlagKomment':
-#
-#             for p in element.Parameters:
-#                 if str(p.Definition.Name) == 'Abschlag Komment':
-#                     print(p.Definition.Name)
-#                     print(p.AsValueString())
-#                     p.Set("C")
-#             print(element.FamilyName)
-#     except:
-#         print('ERROR')
-
-
-# # // get the create document
-# cdoc = doc.Create
-#
-# collector = DB.FilteredElementCollector(doc).OfCategory(DB.BuiltInCategory.OST_GenericAnnotation).OfClass(DB.FamilySymbol)
-# print(collector)
-# for i in collector:
-#     print(i.FamilyName)
-# tag_family = [i for i in collector if i.FamilyName == 'AbschlagKomment'][0]
-#
-#
-# new_tag = cdoc.NewFamilyInstance(DB.XYZ(0,0,0),tag_family,doc.ActiveView)
-#
-#
-#
-#
-#
-# transaction.Commit()
-#
-#
-#
-#
-#
-#
-#
 
 
 

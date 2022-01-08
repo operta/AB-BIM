@@ -54,7 +54,7 @@ def create_and_load_construction_family(transaction, family_name, child_family_m
         print('error')
         print(e)
 
-    load_construction_family(transaction, family_name)
+    # load_construction_family(transaction, family_name)
 
 
 def get_existing_tunnel_curve():
@@ -86,12 +86,18 @@ def get_element_placement_points(element):
         return doc.GetElement()
 
 
+def meter_to_millimeter(meter_value):
+    return meter_value * 1000
+
+def millimeter_to_feet(millimeter_value):
+    return millimeter_value / 304.8
+
 def create_new_point_on_edge(edge, position_meter):
     return doc.Application.Create.NewPointOnEdge(
         edge.GeometryCurve.Reference,
         DB.PointLocationOnCurve(
             DB.PointOnCurveMeasurementType.SegmentLength,
-            position_meter,
+            millimeter_to_feet(meter_to_millimeter(position_meter)),
             DB.PointOnCurveMeasureFrom.Beginning
         )
     )
@@ -140,15 +146,16 @@ def load_section_parameters(section):
 
 def load_sections(section_type):
     return [
-        (0,10),
-        (10.1,15),
-        (15.1,20),
+        (0,145),
     ]
 
 
 def set_section_type():
     value = TextInput('Set section type', default='EBO_K')
     return value
+
+
+
 
 
 transaction = DB.Transaction(doc)
@@ -173,8 +180,7 @@ for id, s in enumerate(sections):
 
 
 
-# TODO set right units
-
+# TODO check section sizes
 
 # TODO preload material types
 

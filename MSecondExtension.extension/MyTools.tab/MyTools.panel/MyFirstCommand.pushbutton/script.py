@@ -83,7 +83,7 @@ def get_element_placement_points(element):
     try:
         return doc.GetElement(placement_points[0]), doc.GetElement(placement_points[1])
     except:
-        print('ERROR')
+        return doc.GetElement()
 
 
 def create_new_point_on_edge(edge, position_meter):
@@ -111,7 +111,8 @@ def create_section_block(transaction, section_element_type_name, family_name, tu
     transaction.Start("CREATE SECTION BLOCK")
     child_family_element = get_family_model(section_element_type_name, family_name)
     child_family_element.Activate()
-    new_section_block = doc.FamilyCreate.NewFamilyInstance(DB.XYZ(50, 0, 0), child_family_element, DB.Structure.StructuralType.NonStructural)
+    new_section_block = DB.AdaptiveComponentInstanceUtils.CreateAdaptiveComponentInstance(doc, child_family_element)
+    # new_section_block = doc.FamilyCreate.NewFamilyInstance(DB.XYZ(50, 0, 0), child_family_element, DB.Structure.StructuralType.NonStructural)
 
     placement_point_a, placement_point_b = get_element_placement_points(new_section_block)
     placement_point_a.SetPointElementReference(create_new_point_on_edge(tunnel_curve, beginning_meter))
@@ -170,15 +171,14 @@ for id, s in enumerate(sections):
 
 
 
-# TODO error on first load says element is not adaptive
 
 
+# TODO set right units
 
 
+# TODO preload material types
 
-
-
-
+# TODO database connection, + include lib in revit
 
 
 

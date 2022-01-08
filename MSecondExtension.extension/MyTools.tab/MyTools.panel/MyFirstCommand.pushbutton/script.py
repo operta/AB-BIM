@@ -1,5 +1,6 @@
 from Autodesk.Revit import DB
 from rpw import db
+from rpw.ui.forms import TextInput
 
 uidoc = __revit__.ActiveUIDocument
 doc = __revit__.ActiveUIDocument.Document
@@ -145,7 +146,8 @@ def load_sections(section_type):
 
 
 def set_section_type():
-    return 'EBO_K'
+    value = TextInput('Set section type', default='EBO_K')
+    return value
 
 
 transaction = DB.Transaction(doc)

@@ -248,10 +248,10 @@ def set_section_type():
 transaction = DB.Transaction(doc)
 
 try:
+    as_built_tunnel_curve = create_tunnel_curve()
     as_designed_element_name = TextInput('Name of the used as-designed model')
     create_construction_family(as_designed_element_name, 'as-built.rfa')
     load_construction_family('as-built.rfa')
-    as_built_tunnel_curve = create_tunnel_curve()
 except Exception as error:
     Alert(str(error), header="User error occured", title="Message")
 

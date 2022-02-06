@@ -156,32 +156,39 @@ def families_to_content(families):
     return content
 
 
-def get_tunnel_element(type):
-    collector = db.Collector(of_class='FamilyInstance')
+def create_section_block(section_element_type_name, tunnel_curve, beginning_meter, ending_meter):
+    section_family_element_type = get_as_built_element(section_element_type_name)
+
+    try:
+        transaction.Start("CREATE SECTION BLOCK")
+        section_family_element_type.Activate()
+        new_section_block = DB.AdaptiveComponentInstanceUtils.CreateAdaptiveComponentInstance(doc, section_family_element_type)
+        placement_point_a, placement_point_b = get_element_placement_points(new_section_block)
+        placement_point_a.SetPointElementReference(create_new_point_on_edge(tunnel_curve, beginning_meter))
+        placement_point_b.SetPointElementReference(create_new_point_on_edge(tunnel_curve, ending_meter))
+        transaction.Commit()
+    except Exception as e:
+        transaction.RollBack()
+        raise Exception("Couldn't create section block", e)
+
+    return new_section_block
+
+
+def get_as_built_element(name):
+    collector = db.Collector(of_class='FamilySymbol')
     elements = collector.get_elements()
-    for element in elements:
-        try:
-            if element.Name == type:
-                return element
-        except Exception as e:
-            print('ERROR')
-            print(e)
+    for e in elements:
+        if e.name == name and e.Family.Name == 'as-built':
+            return doc.GetElement(e.Id)
+    raise NotFoundException("Element not found", name)
 
 
 def get_element_placement_points(element):
-    placement_points = DB.AdaptiveComponentInstanceUtils.GetInstancePlacementPointElementRefIds(element)
     try:
+        placement_points = DB.AdaptiveComponentInstanceUtils.GetInstancePlacementPointElementRefIds(element)
         return doc.GetElement(placement_points[0]), doc.GetElement(placement_points[1])
-    except:
-        return doc.GetElement()
-
-
-def meter_to_millimeter(meter_value):
-    return meter_value * 1000
-
-
-def millimeter_to_feet(millimeter_value):
-    return millimeter_value / 304.8
+    except Exception as e:
+        raise Exception("Couldn't get placement points", e)
 
 
 def create_new_point_on_edge(edge, position_meter):
@@ -195,31 +202,18 @@ def create_new_point_on_edge(edge, position_meter):
     )
 
 
+def meter_to_millimeter(meter_value):
+    return meter_value * 1000
 
 
-
-def create_section_block(transaction, section_element_type_name, family_name, tunnel_curve, beginning_meter,
-                         ending_meter):
-    transaction.Start("CREATE SECTION BLOCK")
-    child_family_element = get_family_model(section_element_type_name, family_name)
-    child_family_element.Activate()
-    new_section_block = DB.AdaptiveComponentInstanceUtils.CreateAdaptiveComponentInstance(doc, child_family_element)
-    # new_section_block = doc.FamilyCreate.NewFamilyInstance(DB.XYZ(50, 0, 0), child_family_element, DB.Structure.StructuralType.NonStructural)
-
-    placement_point_a, placement_point_b = get_element_placement_points(new_section_block)
-    placement_point_a.SetPointElementReference(create_new_point_on_edge(tunnel_curve, beginning_meter))
-    placement_point_b.SetPointElementReference(create_new_point_on_edge(tunnel_curve, ending_meter))
-    transaction.Commit()
-
-    return new_section_block
+def millimeter_to_feet(millimeter_value):
+    return millimeter_value / 304.8
 
 
-def set_section_parameters_values(transaction, section_element, parameter_name, parameter_value):
-    transaction.Start('SET PARAMS')
-    for p in section_element.Parameters:
-        if p.Definition.Name == parameter_name:
-            p.Set(str(parameter_value))
-    transaction.Commit()
+def load_sections():
+    return [
+        (0,145),
+    ]
 
 
 def load_section_parameters(section):
@@ -229,19 +223,13 @@ def load_section_parameters(section):
         ('Station Ende', section[1]),
     ]
 
-def set_section_type():
-    value = TextInput('Set section type', default='EBO_K')
-    return value
 
-def load_sections(section_type):
-    return [
-        (0,145),
-    ]
-
-
-def set_section_type():
-    value = TextInput('Set section type', default='EBO_K')
-    return value
+def set_section_parameters_values(section_element, parameter_name, parameter_value):
+    transaction.Start('SET PARAMETERS')
+    for p in section_element.Parameters:
+        if p.Definition.Name == parameter_name:
+            p.Set(str(parameter_value))
+    transaction.Commit()
 
 
 # Transactions are context-like objects that guard any changes made to a Revit model
@@ -252,16 +240,14 @@ try:
     as_designed_element_name = TextInput('Name of the used as-designed model')
     create_construction_family(as_designed_element_name, 'as-built.rfa')
     load_construction_family('as-built.rfa')
+    sections = load_sections()
+    for id, s in enumerate(sections):
+        section_element = create_section_block(as_designed_element_name, as_built_tunnel_curve, s[0],s[1])
+        section_parameters = load_section_parameters(s)
+        for p in section_parameters:
+            set_section_parameters_values(section_element, p[0], p[1])
 except Exception as error:
     Alert(str(error), header="User error occured", title="Message")
 
-    #
-    # section_type = set_section_type()
-    # sections = load_sections(section_type)
-    # for id, s in enumerate(sections):
-    #     section_element = create_section_block(transaction, section_type, 'construction', as_built_tunnel_curve, s[0],
-    #                                            s[1])
-    #     section_parameters = load_section_parameters(s)
-    #     for p in section_parameters:
-    #         set_section_parameters_values(transaction, section_element, p[0], p[1])
+
 # TODO database connection, + include lib in revit

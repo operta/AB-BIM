@@ -1,6 +1,6 @@
 from Autodesk.Revit import DB
 from rpw import db
-from rpw.ui.forms import TextInput, Alert
+from rpw.ui.forms import TextInput, Alert, TaskDialog, CommandLink
 from not_found_exception import NotFoundException
 
 uidoc = __revit__.ActiveUIDocument
@@ -93,26 +93,75 @@ def load_construction_family(family_name):
         raise Exception("Could not load family", e)
 
 
-def set_section_type():
-    value = TextInput('Set section type', default='EBO_K')
-    return value
+def create_tunnel_curve():
+    as_designed_tunnel_curve, fam_doc = get_existing_tunnel_curve()
+    new_xyz = DB.XYZ(200, -200, 0)
+    try:
+        transaction.Start('CREATE TUNNEL CURVE')
+        new_tunnel_curve_ids = DB.ElementTransformUtils.CopyElement(doc, as_designed_tunnel_curve.Id, new_xyz)
+        new_tunnel_curve = doc.GetElement(new_tunnel_curve_ids[0])
+        transaction.Commit()
+    except Exception as e:
+        transaction.RollBack()
+        raise Exception(e)
+    return new_tunnel_curve
 
 
 def get_existing_tunnel_curve():
-    elements_collector = DB.FilteredElementCollector(doc).WhereElementIsNotElementType().ToElements()
+    result = search_for_tunnel_curve(doc)
+    if result:
+        return result, doc
+    else:
+        search_families_having_tunnel_curve()
+
+
+def search_for_tunnel_curve(document):
+    elements_collector = DB.FilteredElementCollector(document).WhereElementIsNotElementType().ToElements()
     for element in elements_collector:
         try:
             if (str(element.GetType())) == 'Autodesk.Revit.DB.CurveByPoints':
                 return element
-        except:
-            print('Cannot locate existing tunnel curve!')
+        except Exception:
+            pass
+    return None
+
+
+def search_families_having_tunnel_curve():
+    available_families = []
+    for family in get_families():
+        family = doc.GetElement(family.Id)
+        if family.IsEditable:
+            fam_doc = doc.EditFamily(family)
+            result = search_for_tunnel_curve(fam_doc)
+            if result:
+                available_families.append(family.Name)
+                # TODO how to do it without pathName?
+                # uidoc2 = uiapp.OpenDocumentFile(fam_doc.PathName)
+                # uidoc.RefreshActiveView()
+    content = families_to_content(available_families)
+    Alert(title='Error',
+          header='Tunnel curve is not available in current document, please open one of the family documents with the tunnel curve',
+          content=content)
+
+
+def get_families():
+    collector = db.Collector(of_class='Family')
+    return collector.get_elements()
+
+
+def families_to_content(families):
+    content = ''
+    for f in families:
+        content += f + '\n'
+    return content
 
 
 def get_tunnel_element(type):
-    elements_collector = DB.FilteredElementCollector(doc).WhereElementIsNotElementType().ToElements()
-    for element in elements_collector:
+    collector = db.Collector(of_class='FamilyInstance')
+    elements = collector.get_elements()
+    for element in elements:
         try:
-            if element.Name == type and str(element.GetType()) == 'Autodesk.Revit.DB.FamilyInstance':
+            if element.Name == type:
                 return element
         except Exception as e:
             print('ERROR')
@@ -146,14 +195,7 @@ def create_new_point_on_edge(edge, position_meter):
     )
 
 
-def create_tunnel_curve(transaction):
-    transaction.Start('CREATE TUNNEL CURVE')
-    new_xyz = DB.XYZ(200, -200, 0)
-    as_designed_tunnel_curve = get_existing_tunnel_curve()
-    new_tunnel_curve_ids = DB.ElementTransformUtils.CopyElement(doc, as_designed_tunnel_curve.Id, new_xyz)
-    new_tunnel_curve = doc.GetElement(new_tunnel_curve_ids[0])
-    transaction.Commit()
-    return new_tunnel_curve
+
 
 
 def create_section_block(transaction, section_element_type_name, family_name, tunnel_curve, beginning_meter,
@@ -187,6 +229,9 @@ def load_section_parameters(section):
         ('Station Ende', section[1]),
     ]
 
+def set_section_type():
+    value = TextInput('Set section type', default='EBO_K')
+    return value
 
 def load_sections(section_type):
     return [
@@ -206,10 +251,10 @@ try:
     as_designed_element_name = TextInput('Name of the used as-designed model')
     create_construction_family(as_designed_element_name, 'as-built.rfa')
     load_construction_family('as-built.rfa')
+    as_built_tunnel_curve = create_tunnel_curve()
 except Exception as error:
     Alert(str(error), header="User error occured", title="Message")
 
-    # as_built_tunnel_curve = create_tunnel_curve(transaction)
     #
     # section_type = set_section_type()
     # sections = load_sections(section_type)

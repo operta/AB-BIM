@@ -225,11 +225,15 @@ def load_section_parameters(section):
 
 
 def set_section_parameters_values(section_element, parameter_name, parameter_value):
-    transaction.Start('SET PARAMETERS')
-    for p in section_element.Parameters:
-        if p.Definition.Name == parameter_name:
-            p.Set(str(parameter_value))
-    transaction.Commit()
+    try:
+        transaction.Start('SET PARAMETERS')
+        for p in section_element.Parameters:
+            if p.Definition.Name == parameter_name:
+                p.Set(str(parameter_value))
+        transaction.Commit()
+    except Exception as e:
+        transaction.RollBack()
+        raise Exception("Couldn't set section parameters", e)
 
 
 # Transactions are context-like objects that guard any changes made to a Revit model

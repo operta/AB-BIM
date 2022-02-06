@@ -1,14 +1,11 @@
 from Autodesk.Revit import DB
 from rpw import db
-from rpw.ui.forms import TextInput
+from rpw.ui.forms import TextInput, Alert
 from not_found_exception import NotFoundException
 
 uidoc = __revit__.ActiveUIDocument
 doc = __revit__.ActiveUIDocument.Document
 uiapp = __revit__.Application
-
-# Transactions are context-like objects that guard any changes made to a Revit model
-transaction = DB.Transaction(doc)
 
 
 def create_construction_family(family_element_name, new_family_name):
@@ -24,8 +21,8 @@ def create_construction_family(family_element_name, new_family_name):
         family_doc.SaveAs(new_family_name, options)
         transaction.Commit()
     except Exception as e:
-        print(e)
         transaction.RollBack()
+        raise Exception("Couldn't create family", e)
 
 
 def get_element(name):
@@ -89,11 +86,11 @@ def load_construction_family(family_name):
         transaction.Start('LOAD CONSTRUCTION FAMILY')
         result = doc.LoadFamily(family_name)
         if not result:
-            print('Family already loaded!')
+            print('Family already loaded, using loaded family')
         transaction.Commit()
     except Exception as e:
-        print(e)
         transaction.RollBack()
+        raise Exception("Could not load family", e)
 
 
 def set_section_type():
@@ -202,14 +199,15 @@ def set_section_type():
     return value
 
 
-
+# Transactions are context-like objects that guard any changes made to a Revit model
+transaction = DB.Transaction(doc)
 
 try:
     as_designed_element_name = TextInput('Name of the used as-designed model')
     create_construction_family(as_designed_element_name, 'as-built.rfa')
     load_construction_family('as-built.rfa')
 except Exception as error:
-    print(error)
+    Alert(str(error), header="User error occured", title="Message")
 
     # as_built_tunnel_curve = create_tunnel_curve(transaction)
     #

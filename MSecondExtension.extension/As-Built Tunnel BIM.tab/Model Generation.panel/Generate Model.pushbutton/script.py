@@ -1,7 +1,11 @@
+# -*- coding: utf-8 -*-
 from Autodesk.Revit import DB
 from rpw import db
 from rpw.ui.forms import TextInput, Alert, TaskDialog, CommandLink
 from not_found_exception import NotFoundException
+import math
+import locale
+locale.setlocale(locale.LC_ALL, 'nl_NL')
 
 uidoc = __revit__.ActiveUIDocument
 doc = __revit__.ActiveUIDocument.Document
@@ -51,19 +55,19 @@ def add_construction_parameters(family_doc):
 def load_construction_parameters():
     return [
         ('Selbstbohranker', DB.ParameterType.Text),
-        ('SN Mortelanker', DB.ParameterType.Text),
+        ('SN Mörtelanker', DB.ParameterType.Text),
         ('Ortsbrustanker', DB.ParameterType.Text),
         ('Baustahlgitter 1. Lage, ohne Bogen', DB.ParameterType.Text),
         ('Baustahlgitter 1. Lage, mit Bogen', DB.ParameterType.Text),
         ('Baustahlgitter 2. Lage, mit Bogen', DB.ParameterType.Text),
-        ('Rammspiess', DB.ParameterType.Text),
-        ('Selbstbohrspiess', DB.ParameterType.Text),
+        ('Rammspieß', DB.ParameterType.Text),
+        ('Selbstbohrspieß', DB.ParameterType.Text),
         ('Spritzbeton Kalotte und Strosse', DB.ParameterType.Text),
         ('Spritzbeton Ortsbrust', DB.ParameterType.Text),
-        ('Spritzbeton Teilflachen', DB.ParameterType.Text),
+        ('Spritzbeton Teilflächen', DB.ParameterType.Text),
         ('Bogen', DB.ParameterType.Text),
         ('Verpressung', DB.ParameterType.Text),
-        ('Teilflachen', DB.ParameterType.Text),
+        ('Teilflächen', DB.ParameterType.Text),
         ('Sprengstoff', DB.ParameterType.Text),
     ]
 
@@ -223,37 +227,134 @@ def load_sections():
 
 def load_section_material(section):
     return [
-        ('Material 1', 50),
+        ('Selbstbohranker', 50),
         ('Station Anfang', section[0]),
         ('Station Ende', section[1]),
     ]
 
 
-def set_section_material_values(section_element, parameter_name, parameter_value):
+def set_element_parameter(element, parameter_name, parameter_value):
     try:
-        transaction.Start('SET MATERIALS')
-        for p in section_element.Parameters:
-            if p.Definition.Name == parameter_name:
-                p.Set(str(parameter_value))
+        transaction.Start('SET PARAMETER')
+        parameter = get_element_parameter(element, parameter_name)
+        parameter.Set(parameter_value)
         transaction.Commit()
     except Exception as e:
         transaction.RollBack()
-        raise Exception("Couldn't set section materials", e)
+        raise Exception("Couldn't set section parameter", e)
+
+
+def get_element_parameter(element, parameter_name):
+    for p in element.Parameters:
+        if p.Definition.Name == parameter_name:
+            return p
+    raise NotFoundException("Parameter not found!", parameter_name)
 
 
 def create_sections():
+    print('Creating sections')
     for section in load_sections():
         start_meter = section[0]
         end_meter = section[1]
         section_element = create_section_block(as_designed_element_name, as_built_tunnel_curve, start_meter, end_meter)
         add_section_material(section, section_element)
+        set_section_position(section, section_element)
 
 
 def add_section_material(section, section_element):
+    print('Adding section material')
     for material in load_section_material(section):
         material_name = material[0]
         material_type = material[1]
-        set_section_material_values(section_element, material_name, material_type)
+        set_element_parameter(section_element, material_name, material_type)
+
+
+def set_section_position(section, section_element):
+    print('Setting section position')
+    position_parameters = approximate_section_position_parameters(section)
+    for parameter in position_parameters:
+        parameter_name = parameter[0]
+        parameter_value = parameter[1]
+        set_element_parameter(section_element, parameter_name, parameter_value)
+
+
+'''This approximation depends on the given as-designed model'''
+def approximate_section_position_parameters(section):
+    start_meter = section[0]
+    end_meter = section[1]
+    type = 'EBO_K'
+    overlap_elements = find_as_designed_elements_that_overlap_element(start_meter, end_meter, type)
+
+    return [
+        ('Gradientenhöhe_A', millimeter_to_feet(approximate_parameter(overlap_elements, 'Gradientenhöhe_A'))),
+        ('Gradientenhöhe_B', millimeter_to_feet(approximate_parameter(overlap_elements, 'Gradientenhöhe_B'))),
+        ('Querneigung', DB.UnitUtils.ConvertToInternalUnits(approximate_parameter(overlap_elements, 'Querneigung'), get_degree_forge_type())),
+        ('rotXY_A', DB.UnitUtils.ConvertToInternalUnits(approximate_parameter(overlap_elements, 'rotXY_A'), get_degree_forge_type())),
+        ('rotXY_B', DB.UnitUtils.ConvertToInternalUnits(approximate_parameter(overlap_elements, 'rotXY_B'), get_degree_forge_type())),
+    ]
+
+
+def find_as_designed_elements_that_overlap_element(start_meter, end_meter, type):
+    as_designed_elements = []
+    collector = db.Collector(of_class='FamilyInstance')
+    elements = collector.get_elements()
+    for e in elements:
+        if e.name == type and e.Symbol.Family.Name != 'as-built':
+            element_start_meter, element_end_meter = find_as_designed_model_position(e)
+            if element_overlap(element_start_meter, element_end_meter, start_meter, end_meter):
+                as_designed_elements.append(doc.GetElement(e.Id))
+    return as_designed_elements
+
+
+def find_as_designed_model_position(element):
+    p = get_element_parameter(element, 'Blocknummer')
+    blocknummer = int(p.AsValueString())
+    element_start_meter = blocknummer - 1
+    element_end_meter = blocknummer
+    return element_start_meter, element_end_meter
+
+
+def element_overlap(element_A_start, element_A_end, element_B_start, element_B_end):
+    if is_position_between(element_A_start, element_B_start, element_B_end) or is_position_between(element_A_end, element_B_start, element_B_end):
+        return True
+    return False
+
+
+def is_position_between(current_position, start_position, end_position):
+    if start_position <= current_position <= end_position:
+        return True
+    return False
+
+
+def approximate_parameter(elements, parameter_name):
+    parameter_values = []
+    avg_value = 0
+    for element in elements:
+        parameter = get_element_parameter(element, parameter_name)
+        parameter_value = extract_double_from_string(clean_string(parameter.AsValueString()))
+        parameter_values.append(parameter_value)
+    if len(parameter_values) > 0:
+        avg_value = sum(parameter_values) / len(parameter_values)
+    return avg_value
+
+
+def clean_string(value):
+    value = value.replace("°", "")
+    return value
+
+
+def extract_double_from_string(string_number):
+    for t in string_number.split():
+        try:
+            return float(t)
+        except ValueError:
+            return 0
+
+
+def get_degree_forge_type():
+    for u in DB.UnitUtils.GetAllUnits():
+        if DB.UnitUtils.GetTypeCatalogStringForUnit(u) == 'DEGREES':
+            return u
 
 
 # Transactions are context-like objects that guard any changes made to a Revit model
@@ -270,4 +371,3 @@ except Exception as error:
 
 
 # TODO database connection
-# TODO adjust rotation

@@ -212,11 +212,16 @@ def millimeter_to_feet(millimeter_value):
 
 def load_sections():
     return [
-        (0,145),
+        (0,1),
+        (1,2),
+        (2,3),
+        (4,6),
+        (6,9),
+        (9,13),
     ]
 
 
-def load_section_parameters(section):
+def load_section_material(section):
     return [
         ('Material 1', 50),
         ('Station Anfang', section[0]),
@@ -224,16 +229,31 @@ def load_section_parameters(section):
     ]
 
 
-def set_section_parameters_values(section_element, parameter_name, parameter_value):
+def set_section_material_values(section_element, parameter_name, parameter_value):
     try:
-        transaction.Start('SET PARAMETERS')
+        transaction.Start('SET MATERIALS')
         for p in section_element.Parameters:
             if p.Definition.Name == parameter_name:
                 p.Set(str(parameter_value))
         transaction.Commit()
     except Exception as e:
         transaction.RollBack()
-        raise Exception("Couldn't set section parameters", e)
+        raise Exception("Couldn't set section materials", e)
+
+
+def create_sections():
+    for section in load_sections():
+        start_meter = section[0]
+        end_meter = section[1]
+        section_element = create_section_block(as_designed_element_name, as_built_tunnel_curve, start_meter, end_meter)
+        add_section_material(section, section_element)
+
+
+def add_section_material(section, section_element):
+    for material in load_section_material(section):
+        material_name = material[0]
+        material_type = material[1]
+        set_section_material_values(section_element, material_name, material_type)
 
 
 # Transactions are context-like objects that guard any changes made to a Revit model
@@ -244,14 +264,10 @@ try:
     as_designed_element_name = TextInput('Name of the used as-designed model')
     create_construction_family(as_designed_element_name, 'as-built.rfa')
     load_construction_family('as-built.rfa')
-    sections = load_sections()
-    for id, s in enumerate(sections):
-        section_element = create_section_block(as_designed_element_name, as_built_tunnel_curve, s[0],s[1])
-        section_parameters = load_section_parameters(s)
-        for p in section_parameters:
-            set_section_parameters_values(section_element, p[0], p[1])
+    create_sections()
 except Exception as error:
     Alert(str(error), header="User error occured", title="Message")
 
 
-# TODO database connection, + include lib in revit
+# TODO database connection
+# TODO adjust rotation

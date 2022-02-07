@@ -140,7 +140,7 @@ def search_families_having_tunnel_curve():
                 # uidoc.RefreshActiveView()
     content = families_to_content(available_families)
     Alert(title='Error',
-          header='Tunnel curve is not available in current document, please open one of the family documents with the tunnel curve',
+          header='Could not locate tunnel curve, please open one of the family documents with the tunnel curve',
           content=content)
 
 

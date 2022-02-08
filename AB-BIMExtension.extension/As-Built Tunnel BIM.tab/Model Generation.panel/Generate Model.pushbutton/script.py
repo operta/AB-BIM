@@ -1,11 +1,8 @@
 # -*- coding: utf-8 -*-
 from Autodesk.Revit import DB
 from rpw import db
-from rpw.ui.forms import TextInput, Alert, TaskDialog, CommandLink
+from rpw.ui.forms import TextInput, Alert
 from not_found_exception import NotFoundException
-import math
-import locale
-locale.setlocale(locale.LC_ALL, 'nl_NL')
 
 uidoc = __revit__.ActiveUIDocument
 doc = __revit__.ActiveUIDocument.Document
@@ -166,7 +163,7 @@ def create_section_block(section_element_type_name, tunnel_curve, beginning_mete
     try:
         transaction.Start("CREATE SECTION BLOCK")
         section_family_element_type.Activate()
-        new_section_block = DB.AdaptiveComponentInstanceUtils.CreateAdaptiveComponentInstance(doc, section_family_element_type)
+        new_section_block = DB.AdaptiveComponentInstanceUtils.CreateAdaptiveComponentInstance(doc,section_family_element_type)
         placement_point_a, placement_point_b = get_element_placement_points(new_section_block)
         placement_point_a.SetPointElementReference(create_new_point_on_edge(tunnel_curve, beginning_meter))
         placement_point_b.SetPointElementReference(create_new_point_on_edge(tunnel_curve, ending_meter))
@@ -263,10 +260,8 @@ def create_sections():
 
 def add_section_material(section, section_element):
     print('Adding section material')
-    for material in load_section_material(section):
-        material_name = material[0]
-        material_type = material[1]
-        set_element_parameter(section_element, material_name, material_type)
+    for material in section.material:
+        set_element_parameter(section_element, material.name, material.type)
 
 
 def set_section_position(section, section_element):
@@ -278,7 +273,6 @@ def set_section_position(section, section_element):
         set_element_parameter(section_element, parameter_name, parameter_value)
 
 
-'''This approximation depends on the given as-designed model'''
 def approximate_section_position_parameters(section):
     start_meter = section[0]
     end_meter = section[1]
@@ -288,9 +282,12 @@ def approximate_section_position_parameters(section):
     return [
         ('Gradientenhöhe_A', millimeter_to_feet(approximate_parameter(overlap_elements, 'Gradientenhöhe_A'))),
         ('Gradientenhöhe_B', millimeter_to_feet(approximate_parameter(overlap_elements, 'Gradientenhöhe_B'))),
-        ('Querneigung', DB.UnitUtils.ConvertToInternalUnits(approximate_parameter(overlap_elements, 'Querneigung'), get_degree_forge_type())),
-        ('rotXY_A', DB.UnitUtils.ConvertToInternalUnits(approximate_parameter(overlap_elements, 'rotXY_A'), get_degree_forge_type())),
-        ('rotXY_B', DB.UnitUtils.ConvertToInternalUnits(approximate_parameter(overlap_elements, 'rotXY_B'), get_degree_forge_type())),
+        ('Querneigung', DB.UnitUtils.ConvertToInternalUnits(approximate_parameter(overlap_elements, 'Querneigung'),
+                                                            get_degree_forge_type())),
+        ('rotXY_A', DB.UnitUtils.ConvertToInternalUnits(approximate_parameter(overlap_elements, 'rotXY_A'),
+                                                        get_degree_forge_type())),
+        ('rotXY_B', DB.UnitUtils.ConvertToInternalUnits(approximate_parameter(overlap_elements, 'rotXY_B'),
+                                                        get_degree_forge_type())),
     ]
 
 
@@ -315,7 +312,9 @@ def find_as_designed_model_position(element):
 
 
 def element_overlap(element_A_start, element_A_end, element_B_start, element_B_end):
-    if is_position_between(element_A_start, element_B_start, element_B_end) or is_position_between(element_A_end, element_B_start, element_B_end):
+    if is_position_between(element_A_start, element_B_start, element_B_end) or is_position_between(element_A_end,
+                                                                                                   element_B_start,
+                                                                                                   element_B_end):
         return True
     return False
 
@@ -368,6 +367,5 @@ try:
     create_sections()
 except Exception as error:
     Alert(str(error), header="User error occured", title="Message")
-
 
 # TODO database connection

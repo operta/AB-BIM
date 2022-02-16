@@ -1,12 +1,16 @@
 # -*- coding: utf-8 -*-
 from Autodesk.Revit import DB
+from Autodesk.Revit import UI
 from rpw import db
 from rpw.ui.forms import TextInput, Alert
 from not_found_exception import NotFoundException
+from pyrevit import forms
 
 uidoc = __revit__.ActiveUIDocument
 doc = __revit__.ActiveUIDocument.Document
 uiapp = __revit__.Application
+
+TUNNEL_AXIS_ELEMENT_TYPES = ['Autodesk.Revit.DB.CurveByPoints']
 
 
 def create_construction_family(family_element_name, new_family_name):
@@ -18,12 +22,12 @@ def create_construction_family(family_element_name, new_family_name):
     options = DB.SaveAsOptions()
     options.OverwriteExistingFile = True
     try:
-        transaction.Start('CREATE CONSTRUCTION FAMILY')
         family_doc.SaveAs(new_family_name, options)
-        transaction.Commit()
     except Exception as e:
-        transaction.RollBack()
-        raise Exception("Couldn't create family", e)
+        print('overriding Revit file permissions ')
+        loadFamilyCommandId = UI.RevitCommandId.LookupCommandId('ID_FAMILY_LOAD')
+        UI.UIApplication(uiapp).PostCommand(loadFamilyCommandId)
+        raise Exception("Couldn't create family due to Revit file permissions, please close the dialog and try again")
 
 
 def get_element(name):
@@ -66,6 +70,7 @@ def load_construction_parameters():
         ('Verpressung', DB.ParameterType.Text),
         ('Teilflächen', DB.ParameterType.Text),
         ('Sprengstoff', DB.ParameterType.Text),
+        ('Kommentar', DB.ParameterType.Text),
     ]
 
 
@@ -95,11 +100,15 @@ def load_construction_family(family_name):
 
 
 def create_tunnel_curve():
-    as_designed_tunnel_curve, fam_doc = get_existing_tunnel_curve()
+    as_designed_tunnel_curve = get_existing_tunnel_curve()
     new_xyz = DB.XYZ(200, -200, 0)
     try:
         transaction.Start('CREATE TUNNEL CURVE')
-        new_tunnel_curve_ids = DB.ElementTransformUtils.CopyElement(doc, as_designed_tunnel_curve.Id, new_xyz)
+        new_tunnel_curve_ids = DB.ElementTransformUtils.CopyElement(
+            doc,
+            as_designed_tunnel_curve.Id,
+            new_xyz
+        )
         new_tunnel_curve = doc.GetElement(new_tunnel_curve_ids[0])
         transaction.Commit()
     except Exception as e:
@@ -111,19 +120,19 @@ def create_tunnel_curve():
 def get_existing_tunnel_curve():
     result = search_for_tunnel_curve(doc)
     if result:
-        return result, doc
+        return result
     else:
         search_families_having_tunnel_curve()
 
 
 def search_for_tunnel_curve(document):
-    elements_collector = DB.FilteredElementCollector(document).WhereElementIsNotElementType().ToElements()
+    elements_collector = DB.FilteredElementCollector(document)\
+        .WhereElementIsNotElementType()\
+        .ToElements()
     for element in elements_collector:
-        try:
-            if (str(element.GetType())) == 'Autodesk.Revit.DB.CurveByPoints':
-                return element
-        except Exception:
-            pass
+        if element.GetType() and \
+                str(element.GetType()) in TUNNEL_AXIS_ELEMENT_TYPES:
+            return element
     return None
 
 
@@ -136,12 +145,11 @@ def search_families_having_tunnel_curve():
             result = search_for_tunnel_curve(fam_doc)
             if result:
                 available_families.append(family.Name)
-                # TODO how to do it without pathName?
-                # uidoc2 = uiapp.OpenDocumentFile(fam_doc.PathName)
-                # uidoc.RefreshActiveView()
     content = families_to_content(available_families)
     Alert(title='Error',
-          header='Could not locate tunnel curve, please open one of the family documents with the tunnel curve',
+          header='Could not locate tunnel curve, '
+                 'please open one of the family documents'
+                 ' with the tunnel curve',
           content=content)
 
 
@@ -157,16 +165,31 @@ def families_to_content(families):
     return content
 
 
-def create_section_block(section_element_type_name, tunnel_curve, beginning_meter, ending_meter):
+def create_section_block(
+        section_element_type_name,
+        tunnel_curve,
+        beginning_meter,
+        ending_meter
+    ):
     section_family_element_type = get_as_built_element(section_element_type_name)
 
     try:
         transaction.Start("CREATE SECTION BLOCK")
         section_family_element_type.Activate()
-        new_section_block = DB.AdaptiveComponentInstanceUtils.CreateAdaptiveComponentInstance(doc,section_family_element_type)
-        placement_point_a, placement_point_b = get_element_placement_points(new_section_block)
-        placement_point_a.SetPointElementReference(create_new_point_on_edge(tunnel_curve, beginning_meter))
-        placement_point_b.SetPointElementReference(create_new_point_on_edge(tunnel_curve, ending_meter))
+        new_section_block = DB.AdaptiveComponentInstanceUtils.\
+            CreateAdaptiveComponentInstance(
+            doc,
+            section_family_element_type
+        )
+        placement_point_a, placement_point_b = get_element_placement_points(
+            new_section_block
+        )
+        placement_point_a.SetPointElementReference(
+            create_new_point_on_edge(tunnel_curve, beginning_meter)
+        )
+        placement_point_b.SetPointElementReference(
+            create_new_point_on_edge(tunnel_curve, ending_meter)
+        )
         transaction.Commit()
     except Exception as e:
         transaction.RollBack()
@@ -186,7 +209,8 @@ def get_as_built_element(name):
 
 def get_element_placement_points(element):
     try:
-        placement_points = DB.AdaptiveComponentInstanceUtils.GetInstancePlacementPointElementRefIds(element)
+        placement_points = DB.AdaptiveComponentInstanceUtils.\
+            GetInstancePlacementPointElementRefIds(element)
         return doc.GetElement(placement_points[0]), doc.GetElement(placement_points[1])
     except Exception as e:
         raise Exception("Couldn't get placement points", e)

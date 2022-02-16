@@ -5,6 +5,8 @@ from rpw import db
 from rpw.ui.forms import TextInput, Alert
 from not_found_exception import NotFoundException
 from pyrevit import forms
+from pyrevit import script
+
 
 uidoc = __revit__.ActiveUIDocument
 doc = __revit__.ActiveUIDocument.Document
@@ -236,6 +238,10 @@ def millimeter_to_feet(millimeter_value):
 
 
 def load_sections():
+    # file_path = forms.pick_file(file_ext='json')
+    # with open(file_path) as f_obj:
+    #     contents = f_obj.read()
+    #     print(contents)
     return [
         (0,1),
         (1,2),
@@ -278,7 +284,7 @@ def create_sections():
         start_meter = section[0]
         end_meter = section[1]
         section_element = create_section_block(as_designed_element_name, as_built_tunnel_curve, start_meter, end_meter)
-        add_section_material(section, section_element)
+        # add_section_material(section, section_element)
         set_section_position(section, section_element)
 
 
@@ -389,6 +395,7 @@ try:
     create_construction_family(as_designed_element_name, 'as-built.rfa')
     load_construction_family('as-built.rfa')
     create_sections()
+    load_sections()
 except Exception as error:
     Alert(str(error), header="User error occured", title="Message")
 

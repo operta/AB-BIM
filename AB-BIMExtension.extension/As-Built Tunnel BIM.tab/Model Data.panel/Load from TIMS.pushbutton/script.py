@@ -32,6 +32,8 @@ def get_rounds(section_id):
     response = requests.get("https://tunnel.big.tuwien.ac.at:8000/api/construction.tunnel.round/?q=[[\"section\", \"=\", {}]]".format(section_id), headers=headers)
     rounds = []
     for item in response.json():
+        if item['comment'] is None:
+            item['comment'] = ''
         round = Round(item['id'], item['start_chainage'], item['end_chainage'], 'Kalotte', item['comment'])
         rounds.append(round)
     return rounds
@@ -63,8 +65,8 @@ def get_data():
         for round in rounds:
             round_material = get_material(round.id)
             round.material = serialize_data(round_material)
-        section.rounds.append(serialize_data(rounds))
-    return serialize_data(sections)
+        section.rounds = (serialize_data(rounds))
+    return {"sections": serialize_data(sections)}
 
 
 def serialize_data(data_list):
@@ -77,7 +79,7 @@ def serialize_data(data_list):
 def store_data(data):
     file_path = create_file_path()
     with open(file_path, 'w') as f:
-        json.dump(data, f, ensure_ascii=False)
+        json.dump(data, f, ensure_ascii=True)
         print("Data was successfully stored!")
 
 

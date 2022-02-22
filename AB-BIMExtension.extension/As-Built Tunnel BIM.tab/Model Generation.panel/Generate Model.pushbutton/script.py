@@ -6,6 +6,7 @@ from rpw.ui.forms import TextInput, Alert
 from not_found_exception import NotFoundException
 from pyrevit import forms
 from pyrevit import script
+import json
 
 
 uidoc = __revit__.ActiveUIDocument
@@ -237,29 +238,6 @@ def millimeter_to_feet(millimeter_value):
     return millimeter_value / 304.8
 
 
-def load_sections():
-    # file_path = forms.pick_file(file_ext='json')
-    # with open(file_path) as f_obj:
-    #     contents = f_obj.read()
-    #     print(contents)
-    return [
-        (0,1),
-        (1,2),
-        (2,3),
-        (4,6),
-        (6,9),
-        (9,13),
-    ]
-
-
-def load_section_material(section):
-    return [
-        ('Selbstbohranker', 50),
-        ('Station Anfang', section[0]),
-        ('Station Ende', section[1]),
-    ]
-
-
 def set_element_parameter(element, parameter_name, parameter_value):
     try:
         transaction.Start('SET PARAMETER')
@@ -278,34 +256,30 @@ def get_element_parameter(element, parameter_name):
     raise NotFoundException("Parameter not found!", parameter_name)
 
 
-def create_sections():
-    print('Creating sections')
-    for section in load_sections():
-        start_meter = section[0]
-        end_meter = section[1]
-        section_element = create_section_block(as_designed_element_name, as_built_tunnel_curve, start_meter, end_meter)
-        # add_section_material(section, section_element)
-        set_section_position(section, section_element)
+def add_tunnel_element(start_meter, end_meter, material, comment):
+    section_element = create_section_block(as_designed_element_name, as_built_tunnel_curve, start_meter, end_meter)
+    set_element_parameter(section_element, 'Kommentar', comment)
+    add_section_material(material, section_element)
+    set_section_position(start_meter, end_meter, section_element)
 
 
-def add_section_material(section, section_element):
+def add_section_material(material, section_element):
     print('Adding section material')
-    for material in section.material:
-        set_element_parameter(section_element, material.name, material.type)
+    for item in material:
+        set_element_parameter(section_element, item['name'], str(item['value']) + ' ' + item['value_type'])
 
 
-def set_section_position(section, section_element):
+def set_section_position(start_meter, end_meter, section_element):
     print('Setting section position')
-    position_parameters = approximate_section_position_parameters(section)
+    position_parameters = approximate_section_position_parameters(start_meter, end_meter)
     for parameter in position_parameters:
         parameter_name = parameter[0]
         parameter_value = parameter[1]
         set_element_parameter(section_element, parameter_name, parameter_value)
 
 
-def approximate_section_position_parameters(section):
-    start_meter = section[0]
-    end_meter = section[1]
+def approximate_section_position_parameters(start_meter, end_meter):
+    # TODO set appropriate type!!!
     type = 'EBO_K'
     overlap_elements = find_as_designed_elements_that_overlap_element(start_meter, end_meter, type)
 
@@ -386,17 +360,25 @@ def get_degree_forge_type():
             return u
 
 
+def load_data():
+    file_path = forms.pick_file(file_ext='json')
+    data = open(file_path, 'r').read()
+    data = json.loads(data)
+    for item in data['sections']:
+        for round in item['rounds']:
+            add_tunnel_element(round['start_meter'], round['end_meter'], round['material'], round['comment'])
+
+
 # Transactions are context-like objects that guard any changes made to a Revit model
 transaction = DB.Transaction(doc)
 
 try:
-    as_built_tunnel_curve = create_tunnel_curve()
     as_designed_element_name = TextInput('Name of the used as-designed model')
     create_construction_family(as_designed_element_name, 'as-built.rfa')
     load_construction_family('as-built.rfa')
-    create_sections()
-    load_sections()
+    as_built_tunnel_curve = create_tunnel_curve()
+    load_data()
 except Exception as error:
     Alert(str(error), header="User error occured", title="Message")
 
-# TODO database connection
+# TODO pick right model kallote, strosse, sohle

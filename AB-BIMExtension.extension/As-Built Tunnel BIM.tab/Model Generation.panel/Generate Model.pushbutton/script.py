@@ -2,7 +2,7 @@
 from Autodesk.Revit import DB
 from Autodesk.Revit import UI
 from rpw import db
-from rpw.ui.forms import TextInput, Alert
+from rpw.ui.forms import TextInput, Alert, SelectFromList
 from not_found_exception import NotFoundException
 from pyrevit import forms
 from pyrevit import script
@@ -16,9 +16,10 @@ uiapp = __revit__.Application
 TUNNEL_AXIS_ELEMENT_TYPES = ['Autodesk.Revit.DB.CurveByPoints']
 
 
-def create_construction_family(family_element_name, new_family_name):
+def create_construction_family(new_family_name):
     print('Creating construction family')
-    child_family_element = get_element(family_element_name)
+    as_designed_element_name = TextInput('Name of one of the used as-designed models', description='We need this information to locate the as-designed family.')
+    child_family_element = get_element(as_designed_element_name)
     existing_family = get_element_family(child_family_element)
     family_doc = doc.EditFamily(existing_family)
     add_construction_parameters(family_doc)
@@ -257,6 +258,10 @@ def get_element_parameter(element, parameter_name):
 
 
 def add_tunnel_element(start_meter, end_meter, material, comment):
+    as_designed_element_name = find_as_designed_element_name(start_meter, end_meter)
+    if as_designed_element_name is None:
+        as_designed_element_name = TextInput('Could not find element at position start:' + str(start_meter) +' , end:' + str(end_meter) +
+                                             ', Please enter the as-designed element name')
     section_element = create_section_block(as_designed_element_name, as_built_tunnel_curve, start_meter, end_meter)
     set_element_parameter(section_element, 'Kommentar', comment)
     add_section_material(material, section_element)
@@ -271,18 +276,15 @@ def add_section_material(material, section_element):
 
 def set_section_position(start_meter, end_meter, section_element):
     print('Setting section position')
-    position_parameters = approximate_section_position_parameters(start_meter, end_meter)
+    position_parameters = approximate_section_position_parameters(start_meter, end_meter, section_element.Name)
     for parameter in position_parameters:
         parameter_name = parameter[0]
         parameter_value = parameter[1]
         set_element_parameter(section_element, parameter_name, parameter_value)
 
 
-def approximate_section_position_parameters(start_meter, end_meter):
-    # TODO set appropriate type!!!
-    type = 'EBO_K'
-    overlap_elements = find_as_designed_elements_that_overlap_element(start_meter, end_meter, type)
-
+def approximate_section_position_parameters(start_meter, end_meter, element_type):
+    overlap_elements = find_as_designed_elements_that_overlap_element(start_meter, end_meter, element_type)
     return [
         ('Gradientenhöhe_A', millimeter_to_feet(approximate_parameter(overlap_elements, 'Gradientenhöhe_A'))),
         ('Gradientenhöhe_B', millimeter_to_feet(approximate_parameter(overlap_elements, 'Gradientenhöhe_B'))),
@@ -293,6 +295,28 @@ def approximate_section_position_parameters(start_meter, end_meter):
         ('rotXY_B', DB.UnitUtils.ConvertToInternalUnits(approximate_parameter(overlap_elements, 'rotXY_B'),
                                                         get_degree_forge_type())),
     ]
+
+
+def find_as_designed_element_name(start_meter, end_meter):
+    collector = db.Collector(of_class='FamilyInstance')
+    elements = collector.get_elements()
+    for e in elements:
+        try:
+            if e.Symbol.Family.Name != 'as-built' and has_blocknummer(e):
+                element_start_meter, element_end_meter = find_as_designed_model_position(e)
+                if element_overlap(element_start_meter, element_end_meter, start_meter, end_meter):
+                    return e.name
+        except Exception as e:
+            continue
+    return None
+
+
+def has_blocknummer(element):
+    try:
+        p = get_element_parameter(element, 'Blocknummer')
+        return True
+    except Exception as e:
+        return False
 
 
 def find_as_designed_elements_that_overlap_element(start_meter, end_meter, type):
@@ -364,21 +388,21 @@ def load_data():
     file_path = forms.pick_file(file_ext='json')
     data = open(file_path, 'r').read()
     data = json.loads(data)
+    cross_section_type = SelectFromList('Select cross section type of tunnel rounds you want to generate', ["Kalotte", "Strosse", "Sohle"])
     for item in data['sections']:
         for round in item['rounds']:
-            add_tunnel_element(round['start_meter'], round['end_meter'], round['material'], round['comment'])
+            if round['cross_section_type'] == cross_section_type:
+                add_tunnel_element(round['start_meter'], round['end_meter'], round['material'], round['comment'])
 
 
 # Transactions are context-like objects that guard any changes made to a Revit model
 transaction = DB.Transaction(doc)
 
 try:
-    as_designed_element_name = TextInput('Name of the used as-designed model')
-    create_construction_family(as_designed_element_name, 'as-built.rfa')
+    create_construction_family('as-built.rfa')
     load_construction_family('as-built.rfa')
     as_built_tunnel_curve = create_tunnel_curve()
     load_data()
 except Exception as error:
     Alert(str(error), header="User error occured", title="Message")
 
-# TODO pick right model kallote, strosse, sohle

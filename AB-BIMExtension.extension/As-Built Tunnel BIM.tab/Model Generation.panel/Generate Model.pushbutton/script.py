@@ -221,10 +221,12 @@ def get_element_parameter(element, parameter_name):
 
 
 def add_tunnel_element(start_meter, end_meter, material, comment):
+    print('Adding tunnel element')
     as_designed_element_name = find_as_designed_element_name(start_meter, end_meter)
     if as_designed_element_name is None:
-        as_designed_element_name = TextInput('Could not find element at position start:' + str(start_meter) +' , end:' + str(end_meter) +
-                                             ', Please enter the as-designed element name')
+        as_designed_element_name = TextInput('Could not find element at position (' + str(start_meter) +' - ' + str(end_meter) + ')',
+                                             description='Please enter the model type name for this tunnel round',
+                                             default='EBO_K')
     section_element = create_section_block(as_designed_element_name, as_built_tunnel_curve, start_meter, end_meter)
     set_element_parameter(section_element, 'Kommentar', comment)
     add_section_material(material, section_element)
@@ -267,7 +269,7 @@ def find_as_designed_element_name(start_meter, end_meter):
         try:
             if e.Symbol.Family.Name != 'as-built' and has_blocknummer(e):
                 element_start_meter, element_end_meter = find_as_designed_model_position(e)
-                if element_overlap(element_start_meter, element_end_meter, start_meter, end_meter):
+                if element_overlap(start_meter, end_meter, element_start_meter, element_end_meter):
                     return e.name
         except Exception as e:
             continue
@@ -289,7 +291,7 @@ def find_as_designed_elements_that_overlap_element(start_meter, end_meter, type)
     for e in elements:
         if e.name == type and e.Symbol.Family.Name != 'as-built':
             element_start_meter, element_end_meter = find_as_designed_model_position(e)
-            if element_overlap(element_start_meter, element_end_meter, start_meter, end_meter):
+            if element_overlap(start_meter, end_meter, element_start_meter, element_end_meter):
                 as_designed_elements.append(doc.GetElement(e.Id))
     return as_designed_elements
 
@@ -376,6 +378,10 @@ try:
     as_built_tunnel_curve = create_tunnel_curve()
     data = load_construction_data()
     add_construction_data(data)
+    Alert("As-built model generated successfully!", header="Automatic Generation Finished")
 except Exception as error:
-    Alert(str(error), header="User error occured", title="Message")
+    Alert(str(error), header="Automatic Generation Finished", title="User error occured")
 
+
+# TODO add blocknummer
+# TODO add construction time for tunnel round

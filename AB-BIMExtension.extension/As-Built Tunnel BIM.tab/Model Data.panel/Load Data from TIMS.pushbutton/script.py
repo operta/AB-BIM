@@ -29,7 +29,9 @@ def get_sections():
 
 
 def get_rounds(section_id):
-    response = requests.get("https://tunnel.big.tuwien.ac.at:8000/api/construction.tunnel.round/?q=[[\"section\", \"=\", {}]]".format(section_id), headers=headers)
+    response = requests.get(
+        "https://tunnel.big.tuwien.ac.at:8000/api/construction.tunnel.round/?q=[[\"section\", \"=\", {}]]".format(
+            section_id), headers=headers)
     rounds = []
     for item in response.json():
         if item['comment'] is None:
@@ -41,7 +43,9 @@ def get_rounds(section_id):
 
 def get_material(round_id):
     round_activity_ids = get_round_activity_ids(round_id)
-    response = requests.get("https://tunnel.big.tuwien.ac.at:8000/api/construction.tunnel.measure/?q=[[\"activity\", \"in\", {}]]".format(round_activity_ids), headers=headers)
+    response = requests.get(
+        "https://tunnel.big.tuwien.ac.at:8000/api/construction.tunnel.measure/?q=[[\"activity\", \"in\", {}]]".format(
+            round_activity_ids), headers=headers)
     materials = []
     for item in response.json():
         material = Material(item['measure_definition.']['name'], item['uom.']['name'], item['quantity'])
@@ -50,7 +54,9 @@ def get_material(round_id):
 
 
 def get_round_activity_ids(round_id):
-    response = requests.get("https://tunnel.big.tuwien.ac.at:8000/api/construction.activity/?q=[[\"round\",\"=\",{}]]".format(round_id), headers=headers)
+    response = requests.get(
+        "https://tunnel.big.tuwien.ac.at:8000/api/construction.activity/?q=[[\"round\",\"=\",{}]]".format(round_id),
+        headers=headers)
     activity_ids = []
     for item in response.json():
         activity_ids.append(item['id'])

@@ -95,6 +95,7 @@ def load_construction_family(family_name):
 
 
 def create_tunnel_curve():
+    print('Creating tunnel curve')
     as_designed_tunnel_curve = get_existing_tunnel_curve()
     new_xyz = DB.XYZ(200, -200, 0)
     try:
@@ -133,31 +134,19 @@ def search_for_tunnel_curve(document):
 
 def search_families_having_tunnel_curve():
     available_families = []
-    for family in get_families():
+    for family in Utils.get_families():
         family = doc.GetElement(family.Id)
         if family.IsEditable:
             fam_doc = doc.EditFamily(family)
             result = search_for_tunnel_curve(fam_doc)
             if result:
                 available_families.append(family.Name)
-    content = families_to_content(available_families)
+    content = Utils.format_list_to_string(available_families)
     Alert(title='Error',
           header='Could not locate tunnel curve, '
                  'please open one of the family documents'
                  ' with the tunnel curve',
           content=content)
-
-
-def get_families():
-    collector = db.Collector(of_class='Family')
-    return collector.get_elements()
-
-
-def families_to_content(families):
-    content = ''
-    for f in families:
-        content += f + '\n'
-    return content
 
 
 def create_section_block(
@@ -392,7 +381,7 @@ transaction = DB.Transaction(doc)
 try:
     create_construction_family('as-built.rfa')
     load_construction_family('as-built.rfa')
-    as_built_tunnel_curve = create_tunnel_curve()
+    create_tunnel_curve()
     load_data()
 except Exception as error:
     Alert(str(error), header="User error occured", title="Message")

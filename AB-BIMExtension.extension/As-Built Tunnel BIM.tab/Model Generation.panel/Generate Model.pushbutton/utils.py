@@ -15,3 +15,15 @@ def get_element_family(element):
     if element.Family:
         return element.Family
     raise NotFoundException("Element family not found", element)
+
+
+def get_families():
+    collector = db.Collector(of_class='Family')
+    return collector.get_elements()
+
+
+def format_list_to_string(list):
+    content = ''
+    for element in list:
+        content += element + '\n'
+    return content

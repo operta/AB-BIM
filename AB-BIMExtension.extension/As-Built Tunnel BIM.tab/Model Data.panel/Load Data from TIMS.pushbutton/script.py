@@ -102,4 +102,3 @@ def get_parent_dir(directory):
 headers = authenticate()
 data = get_data()
 store_data(data)
-

@@ -155,7 +155,7 @@ def create_section_block(
         beginning_meter,
         ending_meter
     ):
-    section_family_element_type = get_as_built_element(section_element_type_name)
+    section_family_element_type = Utils.get_as_built_element(doc, section_element_type_name)
 
     try:
         transaction.Start("CREATE SECTION BLOCK")
@@ -182,15 +182,6 @@ def create_section_block(
     return new_section_block
 
 
-def get_as_built_element(name):
-    collector = db.Collector(of_class='FamilySymbol')
-    elements = collector.get_elements()
-    for e in elements:
-        if e.name == name and e.Family.Name == 'as-built':
-            return doc.GetElement(e.Id)
-    raise NotFoundException("Element not found", name)
-
-
 def get_element_placement_points(element):
     try:
         placement_points = DB.AdaptiveComponentInstanceUtils.\
@@ -205,18 +196,10 @@ def create_new_point_on_edge(edge, position_meter):
         edge.GeometryCurve.Reference,
         DB.PointLocationOnCurve(
             DB.PointOnCurveMeasurementType.SegmentLength,
-            millimeter_to_feet(meter_to_millimeter(position_meter)),
+            Utils.meter_to_feet(position_meter),
             DB.PointOnCurveMeasureFrom.Beginning
         )
     )
-
-
-def meter_to_millimeter(meter_value):
-    return meter_value * 1000
-
-
-def millimeter_to_feet(millimeter_value):
-    return millimeter_value / 304.8
 
 
 def set_element_parameter(element, parameter_name, parameter_value):
@@ -266,8 +249,8 @@ def set_section_position(start_meter, end_meter, section_element):
 def approximate_section_position_parameters(start_meter, end_meter, element_type):
     overlap_elements = find_as_designed_elements_that_overlap_element(start_meter, end_meter, element_type)
     return [
-        ('Gradientenhöhe_A', millimeter_to_feet(approximate_parameter(overlap_elements, 'Gradientenhöhe_A'))),
-        ('Gradientenhöhe_B', millimeter_to_feet(approximate_parameter(overlap_elements, 'Gradientenhöhe_B'))),
+        ('Gradientenhöhe_A', Utils.millimeter_to_feet(approximate_parameter(overlap_elements, 'Gradientenhöhe_A'))),
+        ('Gradientenhöhe_B', Utils.millimeter_to_feet(approximate_parameter(overlap_elements, 'Gradientenhöhe_B'))),
         ('Querneigung', DB.UnitUtils.ConvertToInternalUnits(approximate_parameter(overlap_elements, 'Querneigung'),
                                                             get_degree_forge_type())),
         ('rotXY_A', DB.UnitUtils.ConvertToInternalUnits(approximate_parameter(overlap_elements, 'rotXY_A'),
@@ -364,12 +347,21 @@ def get_degree_forge_type():
             return u
 
 
-def load_data():
-    file_path = forms.pick_file(file_ext='json')
+def load_construction_data():
+    print('Loading construction data')
+    Alert("Click button \'Load data from TIMS\' to generate current data snapshot from TIMS. You are also able to add your own construction data",
+          header="Adding Construction Data",
+          title="Information")
+    file_path = forms.pick_file(title='Please select a file containing construction information', file_ext='json')
     data = open(file_path, 'r').read()
-    data = json.loads(data)
-    cross_section_type = SelectFromList('Select cross section type of tunnel rounds you want to generate', ["Kalotte", "Strosse", "Sohle"])
-    for item in data['sections']:
+    return json.loads(data)
+
+
+def add_construction_data(construction_data):
+    print('Adding construction data')
+    cross_section_type = SelectFromList('Select cross section type of tunnel rounds you want to generate',
+                                        ["Kalotte", "Strosse", "Sohle"])
+    for item in construction_data['sections']:
         for round in item['rounds']:
             if round['cross_section_type'] == cross_section_type:
                 add_tunnel_element(round['start_meter'], round['end_meter'], round['material'], round['comment'])
@@ -381,8 +373,9 @@ transaction = DB.Transaction(doc)
 try:
     create_construction_family('as-built.rfa')
     load_construction_family('as-built.rfa')
-    create_tunnel_curve()
-    load_data()
+    as_built_tunnel_curve = create_tunnel_curve()
+    data = load_construction_data()
+    add_construction_data(data)
 except Exception as error:
     Alert(str(error), header="User error occured", title="Message")
 

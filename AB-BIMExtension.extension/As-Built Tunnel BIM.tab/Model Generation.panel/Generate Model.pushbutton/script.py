@@ -7,6 +7,7 @@ from not_found_exception import NotFoundException
 from pyrevit import forms
 from pyrevit import script
 import json
+import utils as Utils
 
 
 uidoc = __revit__.ActiveUIDocument
@@ -35,23 +36,8 @@ def create_construction_family(new_family_name):
 def locate_as_designed_family():
     as_designed_element_name = TextInput('Loading As-designed Family', default='EBO_K',
                                          description='Please enter the name of an used as-designed model.')
-    child_family_element = get_element(as_designed_element_name)
-    return get_element_family(child_family_element)
-
-
-def get_element(name):
-    collector = db.Collector(of_class='FamilySymbol')
-    elements = collector.get_elements()
-    for e in elements:
-        if e.name == name:
-            return doc.GetElement(e.Id)
-    raise NotFoundException("Element not found", name)
-
-
-def get_element_family(element):
-    if element.Family:
-        return element.Family
-    raise NotFoundException("Element family not found", element)
+    child_family_element = Utils.get_element(doc, as_designed_element_name)
+    return Utils.get_element_family(child_family_element)
 
 
 def add_construction_parameters(family_doc):

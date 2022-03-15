@@ -66,6 +66,9 @@ def load_construction_parameters():
         ('Teilflächen', DB.ParameterType.Text),
         ('Sprengstoff', DB.ParameterType.Text),
         ('Kommentar', DB.ParameterType.Text),
+        ('Zeit Anfang', DB.ParameterType.Text),
+        ('Zeit Ende', DB.ParameterType.Text),
+        ('Dauer', DB.ParameterType.Text),
     ]
 
 
@@ -220,7 +223,7 @@ def get_element_parameter(element, parameter_name):
     raise NotFoundException("Parameter not found!", parameter_name)
 
 
-def add_tunnel_element(start_meter, end_meter, material, comment):
+def add_tunnel_element(start_meter, end_meter, material, comment, start_time, end_time, duration):
     print('Adding tunnel element')
     as_designed_element_name = find_as_designed_element_name(start_meter, end_meter)
     if as_designed_element_name is None:
@@ -229,6 +232,11 @@ def add_tunnel_element(start_meter, end_meter, material, comment):
                                              default='EBO_K')
     section_element = create_section_block(as_designed_element_name, as_built_tunnel_curve, start_meter, end_meter)
     set_element_parameter(section_element, 'Kommentar', comment)
+    set_element_parameter(section_element, 'Station Anfang', str(start_meter) + 'm')
+    set_element_parameter(section_element, 'Station Ende', str(end_meter) + 'm')
+    set_element_parameter(section_element, 'Zeit Anfang', start_time)
+    set_element_parameter(section_element, 'Zeit Ende', end_time)
+    set_element_parameter(section_element, 'Dauer', duration)
     add_section_material(material, section_element)
     set_section_position(start_meter, end_meter, section_element)
 
@@ -365,8 +373,8 @@ def add_construction_data(construction_data):
                                         ["Kalotte", "Strosse", "Sohle"])
     for item in construction_data['sections']:
         for round in item['rounds']:
-            if round['cross_section_type'] == cross_section_type:
-                add_tunnel_element(round['start_meter'], round['end_meter'], round['material'], round['comment'])
+                add_tunnel_element(round['start_meter'], round['end_meter'], round['material'], round['comment'],
+                                   round['start_datetime'], round['end_datetime'], round['duration'])
 
 
 # Transactions are context-like objects that guard any changes made to a Revit model
@@ -381,7 +389,3 @@ try:
     Alert("As-built model generated successfully!", header="Automatic Generation Finished")
 except Exception as error:
     Alert(str(error), header="Automatic Generation Finished", title="User error occured")
-
-
-# TODO add blocknummer
-# TODO add construction time for tunnel round

@@ -36,9 +36,16 @@ def get_rounds(section_id):
     for item in response.json():
         if item['comment'] is None:
             item['comment'] = ''
-        round = Round(item['id'], item['start_chainage'], item['end_chainage'], 'Kalotte', item['comment'])
+        start_datetime = convert_tims_datetime_object_to_string(item['start_time'])
+        end_datetime = convert_tims_datetime_object_to_string(item['end_time'])
+        round = Round(item['id'], item['start_chainage'], item['end_chainage'], 'Kalotte', item['comment'],
+                      start_datetime, end_datetime, str(item['duration']) + 'h')
         rounds.append(round)
     return rounds
+
+
+def convert_tims_datetime_object_to_string(object):
+    return "{}.{}.{} {}:{}".format(object['day'], object['month'], object['year'], object['hour'], object['minute'])
 
 
 def get_material(round_id):

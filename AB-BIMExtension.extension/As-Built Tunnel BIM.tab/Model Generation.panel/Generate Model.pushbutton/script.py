@@ -18,9 +18,7 @@ TUNNEL_AXIS_ELEMENT_TYPES = ['Autodesk.Revit.DB.CurveByPoints']
 
 def create_construction_family(new_family_name):
     print('Creating construction family')
-    as_designed_element_name = TextInput('Name of one of the used as-designed models', description='We need this information to locate the as-designed family.')
-    child_family_element = get_element(as_designed_element_name)
-    existing_family = get_element_family(child_family_element)
+    existing_family = locate_as_designed_family()
     family_doc = doc.EditFamily(existing_family)
     add_construction_parameters(family_doc)
     options = DB.SaveAsOptions()
@@ -28,10 +26,17 @@ def create_construction_family(new_family_name):
     try:
         family_doc.SaveAs(new_family_name, options)
     except Exception as e:
-        print('overriding Revit file permissions ')
+        print('Overriding Revit file permissions')
         loadFamilyCommandId = UI.RevitCommandId.LookupCommandId('ID_FAMILY_LOAD')
         UI.UIApplication(uiapp).PostCommand(loadFamilyCommandId)
-        raise Exception("Couldn't create family due to Revit file permissions, please close the dialog and try again")
+        raise Exception("Couldn't create family due to Revit file permissions, please close the dialog and try again.")
+
+
+def locate_as_designed_family():
+    as_designed_element_name = TextInput('Loading As-designed Family', default='EBO_K',
+                                         description='Please enter the name of an used as-designed model.')
+    child_family_element = get_element(as_designed_element_name)
+    return get_element_family(child_family_element)
 
 
 def get_element(name):
